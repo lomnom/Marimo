@@ -3,10 +3,11 @@ from math import e
 #For actual implementation:
 # sleep(n) sleeps n seconds
 # setPeltier(state) sets peltier to state
-# peltierStatus() returns peltier status
+# peltierStatus() returns peltier status (bool)
 # temperature() returns water temperature
 # getDate() returns today's date
 # getSeconds() gives the seconds since day has started.
+# ambientTemp() returns ambient temperature
 
 timeDivider=float("inf") # 1x speed, 2 for 2x speed.
 # timeDivider=100
@@ -60,3 +61,6 @@ def getSeconds(): # get seconds since day has started
 def timeStep(days,seconds):
 	global now
 	now=now+datetime.timedelta(days,seconds)
+
+def ambientTemp():
+	return 30+(getSeconds()/10000)

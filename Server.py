@@ -96,8 +96,8 @@ def mainPage(path,queryData,self):
 # Input args: None
 # Output:
 # [[year,month,day], ...] least recent --> most recent
-@newPage("/tankDataIndex")
-def tankDataIndex(path,queryData,self):
+@newPage("/dataIndex")
+def dataIndex(path,queryData,self):
 	self.send_response(200)
 	self.send_header("Content-Type", "application/json")
 	self.end_headers()
@@ -115,9 +115,9 @@ def tankDataIndex(path,queryData,self):
 # - start: "{year}-{month}-{day},{seconds since start of day}" 
 # - end: "{year}-{month}-{day},{seconds since start of day}"
 # Output:
-# [[[year,month,day,second],[on? bool, temp float]], ...] least recent --> most recent, within the range (inclusive)
-@newPage("/tankData")
-def tankData(path,queryData,self):
+# [[[year,month,day,second],[on? bool, tankTemp float,ambientTemp float]], ...] least recent --> most recent, within the range (inclusive)
+@newPage("/data")
+def data(path,queryData,self):
 	self.send_response(200)
 	self.send_header("Content-Type", "application/json")
 	self.end_headers()
@@ -138,13 +138,18 @@ def tankData(path,queryData,self):
 			seconds=int(lineData[0])
 			peltierStatus=(lineData[1]=='C')
 			tankTemp=float(lineData[2])
+			ambientTemp=float(lineData[3])
 			if iterator==startDate and seconds<=startTime:
 				continue
 			elif iterator==endDate and seconds>=endTime:
 				break
-			data.append([[iterator.year,iterator.month,iterator.day,seconds],[peltierStatus,tankTemp]])
+			data.append([[iterator.year,iterator.month,iterator.day,seconds],[peltierStatus,tankTemp,ambientTemp]])
 		iterator+=timedelta(days=1)
 	return json.dumps(data)
+
+@newPage("/dataAnalysis")
+def dataAnalysis(path,queryData,self):
+	return ""
 
 port=8000
 if __name__ == "__main__":

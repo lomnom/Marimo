@@ -1,0 +1,1 @@
+rm /Users/user/Desktop/Code/Marimo/Logs/*

@@ -1,11 +1,111 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<title>MarimoHQ</title>
+  <title>MarimoHQ</title>
+  <script>
+    var lengthInput;
+    var relativeInput;
+    var dateInput;
+    var timeInput;
+    var fetchButton
+    function main(){
+      lengthInput=document.getElementById("length");
+      relativeInput=document.getElementById("relative");
+      dateInput=document.getElementById("date");
+      timeInput=document.getElementById("time");
+      fetchButton=document.getElementById("fetch");
+
+      //make default value now
+      var now=new Date();
+      dateInput.value=now.getFullYear()+"-"+(now.getMonth()+1)+"-"+now.getDate();
+      timeInput.value=String(now.getHours()).padStart(2, '0')+":"+String(now.getMinutes()).padStart(2, '0');
+
+      function fetch(){
+        console.log(["Fetch requested with",lengthInput.value,relativeInput.value,dateInput.value,timeInput.value]);
+
+        //validation
+        if (dateInput.value==""){
+          alert("Date is empty!!")
+        } else if (timeInput.value==""){
+          alert("Time is empty!!")
+        }
+
+        var delta; //length in seconds
+        var plotType="line";
+        var boxScale; //time size of each box plot in seconds
+        var length=lengthInput.value;
+        if (length=="3 min"){
+          delta=3*60;
+        } else if (length=="15 min"){
+          delta=15*60;
+        } else if (length=="1 hr"){
+          delta=1*60*60;
+        } else if (length=="3 hr"){
+          delta=3*60*60;
+        } else if (length=="6 hr"){
+          delta=6*60*60;
+        } else {
+          plotType="box"
+          if (length=="1 day"){
+            delta=24*60*60;
+            boxScale=1*60*60;
+          } else if (length=="7 day"){
+            delta=7*24*60*60;
+            boxScale=6*60*60;
+          } else if (length=="30 day"){
+            delta=30*24*60*60;
+            boxScale=24*60*60;
+          } else {
+            console.log("Invalid date "+length)
+            return;
+          }
+        }
+
+        var time=new Date(dateInput.value+" "+timeInput.value);
+        var start=new Date(time);
+        var end=new Date(time);
+        if (relativeInput.value=="before"){
+          start.setSeconds(start.getSeconds()-delta);
+        } else {
+          end.setSeconds(end.getSeconds()-delta);
+        }
+
+        console.log(["Plot params:",plotType,boxScale,start,end])
+      }
+      fetchButton.addEventListener("click", fetch);
+    }
+
+    window.onload=main;
+  </script>
 </head>
 <body>
+  <div id="fetchParams">
+    <label for="length">Get me</label>
+    <select name="length" id="length">
+      <optgroup label="Line graphs">
+        <option value="3 min">3 minutes</option>
+        <option value="15 min">15 minutes</option>
+        <option value="1 hr">1 hour</option>
+        <option value="3 hr">3 hours</option>
+        <option value="6 hr">6 hours</option>
+      </optgroup>
+      <optgroup label="Box plots">
+        <option value="1 day">1 day</option>
+        <option value="7 day">7 days</option>
+        <option value="30 day">30 days</option>
+      </optgroup>
+    </select>
 
-something's coming.......
+    <label for="relative">of data</label>
+    <select name="relative" id="relative">
+      <option value="before">before</option>
+      <option value="after">after</option>
+    </select>
 
+    <input type="date" id="date" name="date" value="">
+    <input type="time" id="time" name="time" value="">
+
+    <button type="button" id="fetch">Fetch!</button> 
+  </div>
 </body>
 </html> 

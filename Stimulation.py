@@ -63,4 +63,4 @@ def timeStep(days,seconds):
 	now=now+datetime.timedelta(days,seconds)
 
 def ambientTemp():
-	return 30+(getSeconds()/10000)
+	return roomTemp

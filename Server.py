@@ -111,28 +111,15 @@ def dataIndex(path,queryData,self):
 	listing.sort(key=lambda date: (date[0]*10000)+(date[1]*100)+date[2]) #least recent --> most recent
 	return json.dumps(listing)
 
-# Input args: 
-# - start: "{year}-{month}-{day},{seconds since start of day}" 
-# - end: "{year}-{month}-{day},{seconds since start of day}"
-# Output:
-# [[[year,month,day,second],[on? bool, tankTemp float,ambientTemp float]], ...] least recent --> most recent, within the range (inclusive)
-@newPage("/data")
-def data(path,queryData,self):
-	self.send_response(200)
-	self.send_header("Content-Type", "application/json")
-	self.end_headers()
-	startDate,startTime=queryData["start"].split(",")
-	endDate,endTime=queryData["end"].split(",")
-	startDate,endDate=(datetime.strptime(startDate, "%Y-%m-%d"), datetime.strptime(endDate, "%Y-%m-%d"))
-	startTime,endTime=(int(startTime), int(endTime))
-	assert(endDate>=startDate)
-	if endDate==startDate:
-		assert(endTime>startTime)
-
+def getData(startDate,startTime,endDate,endTime):
 	data=[]
 	iterator=startDate
 	while iterator<=endDate:
-		dayData=readFile(f"Logs/{iterator.strftime('%Y-%m-%d')}")
+		try:
+			dayData=readFile(f"Logs/{iterator.strftime('%Y-%m-%d')}")
+		except FileNotFoundError:
+			iterator+=timedelta(days=1)
+			continue
 		for line in dayData.split('\n')[:-1]: #last line is blank
 			lineData=line.split(' ')
 			seconds=int(lineData[0])
@@ -143,13 +130,145 @@ def data(path,queryData,self):
 				continue
 			elif iterator==endDate and seconds>=endTime:
 				break
-			data.append([[iterator.year,iterator.month,iterator.day,seconds],[peltierStatus,tankTemp,ambientTemp]])
+			data.append(((iterator.year,iterator.month,iterator.day,seconds),(peltierStatus,tankTemp,ambientTemp)))
 		iterator+=timedelta(days=1)
-	return json.dumps(data)
+	return data
 
+def processStartEnd(queryData):
+	startDate,startTime=queryData["start"].split(",")
+	endDate,endTime=queryData["end"].split(",")
+	startDate,endDate=(datetime.strptime(startDate, "%Y-%m-%d"), datetime.strptime(endDate, "%Y-%m-%d"))
+	startTime,endTime=(int(startTime), int(endTime))
+	assert(endDate>=startDate)
+	if endDate==startDate:
+		assert(endTime>startTime)
+	return (startDate,startTime,endDate,endTime)
+
+# Input args: 
+# - start: "{year}-{month}-{day},{seconds since start of day}" 
+# - end: "{year}-{month}-{day},{seconds since start of day}"
+# Output:
+# [[[year,month,day,second],[on? bool, tankTemp float,ambientTemp float]], ...] least recent --> most recent, within the range (inclusive)
+@newPage("/data")
+def data(path,queryData,self):
+	self.send_response(200)
+	self.send_header("Content-Type", "application/json")
+	self.end_headers()
+	startDate,startTime,endDate,endTime=processStartEnd(queryData)
+
+	return json.dumps(getData(startDate,startTime,endDate,endTime))
+
+#  0     1     2     3
+# 0.5 1 1.5 2 2.5 3 3.5
+def statsIndex(array,index):
+	index-=0.5
+	if index%1==0:
+		return array[int(index)]
+	else:
+		n=int(index)
+		return (array[n]+array[n+1])/2
+
+#assume sorted low to high.
+def boxWhiskerValues(data,undefined=0): #Q1 Q2 Q3 min max
+	if len(data)==1:
+		return {
+			"Q1":data[0],
+			"Q3":data[0],
+			"Q2":data[0],
+			"min":data[0],"max":data[-1]
+		}
+	elif len(data)==0:
+		return {
+			"Q1":undefined,
+			"Q3":undefined,
+			"Q2":undefined,
+			"min":undefined,"max":undefined
+		}
+	data.sort()
+	length=len(data)
+	return {
+		"Q1":statsIndex(data,length/4),
+		"Q3":statsIndex(data,length-length/4),
+		"Q2":statsIndex(data,length/2),
+		"min":data[0],"max":data[-1]
+	}
+
+# Input args: 
+# - start: "{year}-{month}-{day},{seconds since start of day}" 
+# - end: "{year}-{month}-{day},{seconds since start of day}"
+# Output:
+# {
+#	"tank":{ #boxwhisker values
+#		"min":float,
+# 		"max":float,
+# 		"Q1":float,
+# 		"Q2":float,
+# 		"Q3":float
+# 	},"ambient":{boxwhisker values},
+# 	"peltier":{
+# 		"on":{boxwhisker values}, #duration that it is on/off before toggling again in seconds
+# 		"off":{boxwhisker values},
+# 	}
+# }
 @newPage("/dataAnalysis")
 def dataAnalysis(path,queryData,self):
-	return ""
+	self.send_response(200)
+	self.send_header("Content-Type", "application/json")
+	self.end_headers()
+	startDate,startTime,endDate,endTime=processStartEnd(queryData)
+	data=getData(startDate,startTime,endDate,endTime) #((year,month,day,seconds),(peltierStatus,tankTemp,ambientTemp))
+
+	on=[] #NOTE: will glitch out if entries are missing. values will be incorrect.
+	off=[]
+	firstEntry=None
+	lastEntry=None
+
+	tankTemps=[]
+	ambientTemps=[]
+	time=0 # time since last change in peltier state.
+	temperature=0 # temperature at the last peltier state change
+	previousState=data[0][1][0]
+	for index,entry in enumerate(data):
+		tankTemps.append(entry[1][1])
+		ambientTemps.append(entry[1][2])
+		if index==0:
+			temperature=entry[1][1]
+
+		if previousState!=entry[1][0]:
+			if previousState==False:
+				off.append(time)
+				lastEntry="off"
+				if firstEntry==None:
+					firstEntry="off"
+			else:
+				on.append(time)
+				lastEntry="on"
+				if firstEntry==None:
+					firstEntry="on"
+			time=0
+			previousState=entry[1][0]
+		else:
+			time+=5 # THIS IS TICK LENGTH!!!!!!
+
+	if firstEntry=="on":
+		on=on[1:]
+	elif firstEntry=="off":
+		off=off[1:]
+
+	if lastEntry=="on":
+		on=on[:-1]
+	elif lastEntry=="off":
+		off=off[:-1]
+
+	result={
+		"tank": boxWhiskerValues(tankTemps),
+		"ambient": boxWhiskerValues(ambientTemps),
+		"peltier":{
+			"on": boxWhiskerValues(on),
+			"off": boxWhiskerValues(off)
+		}
+	}
+	return json.dumps(result)
 
 port=8000
 if __name__ == "__main__":

@@ -2,22 +2,26 @@
 <html>
 <head>
   <title>MarimoHQ</title>
-  <script>
+  <script type="text/javascript">
     var lengthInput;
     var relativeInput;
     var dateInput;
     var timeInput;
-    var fetchButton
+    var fetchButton;
+    var show; //checkbox states
+    var params=undefined; //plot params
+    var data=undefined; //data to be loaded from backend
     function main(){
       lengthInput=document.getElementById("length");
       relativeInput=document.getElementById("relative");
       dateInput=document.getElementById("date");
       timeInput=document.getElementById("time");
       fetchButton=document.getElementById("fetch");
+      checkboxToggle();
 
       //make default value now
       var now=new Date();
-      dateInput.value=now.getFullYear()+"-"+(now.getMonth()+1)+"-"+now.getDate();
+      dateInput.value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2, '0')+"-"+String(now.getDate()).padStart(2, '0');
       timeInput.value=String(now.getHours()).padStart(2, '0')+":"+String(now.getMinutes()).padStart(2, '0');
 
       function fetch(){
@@ -32,18 +36,23 @@
 
         var delta; //length in seconds
         var plotType="line";
-        var boxScale; //time size of each box plot in seconds
+        var boxScale; //time size of each box plot/line graph seperator in seconds
         var length=lengthInput.value;
         if (length=="3 min"){
           delta=3*60;
+          boxScale=60;
         } else if (length=="15 min"){
           delta=15*60;
+          boxScale=60;
         } else if (length=="1 hr"){
           delta=1*60*60;
+          boxScale=60;
         } else if (length=="3 hr"){
           delta=3*60*60;
+          boxScale=60*15;
         } else if (length=="6 hr"){
           delta=6*60*60;
+          boxScale=60*30;
         } else {
           plotType="box"
           if (length=="1 day"){
@@ -70,13 +79,66 @@
           end.setSeconds(end.getSeconds()-delta);
         }
 
-        console.log(["Plot params:",plotType,boxScale,start,end])
+        params={"plotType":plotType,"boxScale":boxScale,"start":start,"end":end}
+        loadData();
+        plot();
       }
       fetchButton.addEventListener("click", fetch);
     }
 
+    function toServerDate(date){
+      return (date.getFullYear()+"-"+(date.getMonth()+1)+"-"+date.getDate()) + "," + (date.getHours()*60*60 + date.getMinutes()*60);
+    }
+
+    function fetchLink(url){
+      const xhr=new XMLHttpRequest();
+      xhr.open('GET', url, false);
+      xhr.send(null);
+      if (xhr.status===200) {
+        return JSON.parse(xhr.responseText);
+      } else {
+        throw new Error('Request failed: ' + xhr.statusText);
+      }
+    }
+
+    function loadData(){
+      startParam=toServerDate(params.start);
+      endParam=toServerDate(params.end);
+      if (params.plotType=="line"){
+        console.log(fetchLink("/dataAnalysis?start=2024-11-06,0&end=2024-11-06,900"));
+      }
+    }
+
+    function plot(){
+      console.log(["Plot params:",params]);
+    }
+
+    function checkboxToggle(){
+      tank=document.getElementById("tankShow");
+      ambient=document.getElementById("ambientShow");
+      peltierOn=document.getElementById("peltierOnShow");
+      peltierOff=document.getElementById("peltierOffShow");
+      show=[tank.checked,ambient.checked,peltierOn.checked,peltierOff.checked];
+      if (params!=undefined){
+        plot();
+      }
+    }
+
     window.onload=main;
   </script>
+
+  <style>
+    #showHide {
+      display: flex;
+      flex-direction: row;
+    }
+    #showHideButtons {
+      display: inline; 
+    }
+    #showHideLabel {
+      padding-right: 0.1em;
+    }
+  </style>
 </head>
 <body>
   <div id="fetchParams">
@@ -106,6 +168,20 @@
     <input type="time" id="time" name="time" value="">
 
     <button type="button" id="fetch">Fetch!</button> 
+  </div>
+
+  <div id="showHide">
+    <div id="showHideLabel">Show:</div>
+    <div id="showHideButtons">
+      <input type="checkbox" id="tankShow" name="tankShow" onchange="checkboxToggle()">
+      <label for="tankShow">tank temperature</label> <br>
+      <input type="checkbox" id="ambientShow" name="ambientShow" onchange="checkboxToggle()">
+      <label for="ambientShow">ambient temperature</label> <br>
+      <input type="checkbox" id="peltierOnShow" name="peltierOnShow" onchange="checkboxToggle()">
+      <label for="peltierOnShow">peltier on time</label> <br>
+      <input type="checkbox" id="peltierOffShow" name="peltierOffShow" onchange="checkboxToggle()">
+      <label for="peltierOffShow">peltier off time</label> <br>
+    </div>
   </div>
 </body>
 </html> 
